@@ -132,11 +132,15 @@ class TemplateSerializer(serializers.ModelSerializer):
         except Exception as e:
             logger.exception("TemplateSerializer update error, err = {}".format(e))
             raise serializers.ValidationError(detail={"msg": ("更新失败,{}".format(e))})
-        instance.update_snapshot(pipeline_tree)
+        pre_constants = instance.pipeline_tree.get("constants", {})
         instance_copy = deepcopy(instance)
+        instance.update_snapshot(pipeline_tree)
         instance = super().update(instance, validated_data)
         # 批量修改流程绑定的触发器:
         try:
+            Trigger.objects.compare_constants(
+                pre_constants, pipeline_tree.get("constants", {}), validated_data.get("triggers")
+            )
             Trigger.objects.batch_modify_triggers(instance, validated_data["triggers"])
         except Exception as e:
             logger.exception("Triggers update or create failed,{}".format(e))
